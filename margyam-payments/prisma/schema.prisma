@@ -1,0 +1,161 @@
+// This is the Prisma schema for margyam-payments (PostgreSQL)
+// Handles: Wallet, Transactions, PaymentOrders, Payouts, Refunds, PricingTiers, Referrals
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ── Wallet ──────────────────────────────────────────────────────────────────
+model Wallet {
+  id          String        @id @default(uuid())
+  userId      String        @unique
+  balance     Int           @default(0)     // Balance in coins (integer prevents rounding issues)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  transactions Transaction[]
+  payouts      Payout[]
+
+  @@index([userId])
+}
+
+// ── Transaction ─────────────────────────────────────────────────────────────
+model Transaction {
+  id               String           @id @default(uuid())
+  walletId         String
+  wallet           Wallet           @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  userId           String           // Directly queryable userId
+  type             TransactionType
+  source           TransactionSource @default(PURCHASE)
+  amount           Int              // Money amount in paise for PURCHASE, 0 otherwise
+  coins            Int              // Delta of coins
+  description      String?
+  idempotencyKey   String?          @unique
+  status           PaymentStatus    @default(SUCCESS)
+  refundedFromId   String?
+  createdAt        DateTime         @default(now())
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([walletId])
+}
+
+// ── PaymentOrder ─────────────────────────────────────────────────────────────
+model PaymentOrder {
+  id                    String        @id @default(uuid())
+  userId                String
+  merchantTransactionId String        @unique
+  amount                Int           // Amount in paise (INR)
+  questions             Int           // Questions count
+  coins                 Int           // Coins to credit on success
+  status                OrderStatus   @default(CREATED)
+  gateway               String        @default("PHONEPE")
+  refundStatus          RefundStatus?
+  refundedAmount        Int?
+  refundedAt            DateTime?
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([merchantTransactionId])
+}
+
+// ── Payout ───────────────────────────────────────────────────────────────────
+model Payout {
+  id           String       @id @default(uuid())
+  walletId     String
+  wallet       Wallet       @relation(fields: [walletId], references: [id])
+  userId       String
+  amount       Int          // Payout in paise (INR)
+  status       PayoutStatus @default(PENDING)
+  upiId        String?
+  processedAt  DateTime?
+  createdAt    DateTime     @default(now())
+
+  @@index([userId])
+}
+
+// ── PricingTier ──────────────────────────────────────────────────────────────
+model PricingTier {
+  id        String   @id @default(uuid())
+  questions Int      @unique
+  pricePerQ Float
+  label     String?
+  tag       String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ── PaymentConfig ────────────────────────────────────────────────────────────
+model PaymentConfig {
+  id        String   @id @default(uuid())
+  key       String   @unique @default("default")
+  ctaText   String   @default("Proceed to Pay")
+  promoText String   @default("Volume Discount Active: Get 3+ questions at ₹40/each!")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ── Referral Ledger ──────────────────────────────────────────────────────────
+model Referral {
+  id              String    @id @default(uuid())
+  referrerId      String
+  referredUserId  String    @unique
+  coinsAwarded    Int       @default(150)
+  isCompleted     Boolean   @default(false)
+  completedAt     DateTime?
+  createdAt       DateTime  @default(now())
+
+  @@index([referrerId])
+}
+
+// ── Enums ────────────────────────────────────────────────────────────────────
+enum TransactionType {
+  CREDIT
+  DEBIT
+  REFUND
+  BONUS
+  REFERRAL
+}
+
+enum TransactionSource {
+  PURCHASE
+  REFERRAL
+  QUESTION_ASKED
+  ADMIN_GRANT
+  FREE_COINS_REQUEST
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  REFUNDED
+  CANCELLED
+}
+
+enum OrderStatus {
+  CREATED
+  PAID
+  PROCESSING
+  COMPLETED
+  CANCELLED
+  REFUNDED
+}
+
+enum RefundStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
+enum PayoutStatus {
+  PENDING
+  PROCESSING
+  PAID
+  FAILED
+}

@@ -1,0 +1,204 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  ASTROLOGER
+  OPS
+  ADMIN
+}
+
+// Embedded Type: Onboarding status embedded inside User document (Zero Joins)
+type OnboardingInfo {
+  currentStep String   @default("PHONE")
+  isComplete  Boolean  @default(false)
+  updatedAt   DateTime @default(now())
+}
+
+// Embedded Type: Telemetry & session metadata embedded inside User document (Zero Joins)
+type MetadataInfo {
+  deviceType       String?
+  browser          String?
+  os               String?
+  ipAddress        String?
+  city             String?
+  country          String?
+  timezone         String?
+  utmSource        String?
+  utmMedium        String?
+  utmCampaign      String?
+  loginCount       Int      @default(1)
+  totalChats       Int      @default(0)
+  lastActiveAt     DateTime @default(now())
+  createdAt        DateTime @default(now())
+}
+
+model User {
+  id                String          @id @default(auto()) @map("_id") @db.ObjectId
+  mobile            String?         @unique
+  email             String?         @unique
+  password          String?
+  deviceId          String?         @unique
+  isGuest           Boolean         @default(false)
+  role              Role            @default(USER)
+
+  // Profile Information
+  fullName          String?
+  gender            String?
+  dateOfBirth       String?
+  timeOfBirth       String?
+  placeOfBirth      String?
+  latitude          Float?
+  longitude         Float?
+  preferredLanguage String          @default("en")
+  profileCompleted  Boolean         @default(false)
+  isBetaApproved    Boolean         @default(true)
+  referralCode      String?         @unique
+
+  // Primary Astrological Data (First-class top-level profile fields)
+  kundliData        String?         // Stored as JSON string of Kundli natal chart
+  gocharData        String?         // Stored as JSON string of computed transits
+  pushSubscription  Json?           // Web Push subscription object
+
+  // Embedded Sub-Documents (Zero $lookup joins!)
+  onboarding        OnboardingInfo?
+  userMetadata      MetadataInfo?
+
+  // Unbounded 1-to-Many Relations
+  sessions          ChatSession[]
+  dailyGuidances    DailyGuidance[]
+  languagesTracked  LanguageMetadata[]
+  referralFunnels   ReferralMetadata[]
+
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  @@index([createdAt])
+  @@index([deviceId])
+  @@index([role])
+}
+
+model ChatSession {
+  id        String        @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String        @db.ObjectId
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String?
+  messages  ChatMessage[]
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  @@index([userId, updatedAt(sort: Desc)])
+}
+
+model ChatMessage {
+  id                String      @id @default(auto()) @map("_id") @db.ObjectId
+  sessionId         String      @db.ObjectId
+  session           ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  role              String      // "user" or "ai"
+  content           String
+  confidenceScore   Int?
+  citations         Json?
+  visualData        Json?
+  followUpQuestions String[]    @default([])
+  isFree            Boolean     @default(true)
+  rating            Int?        // 1 for thumbs up, -1 for thumbs down
+  correction        String?
+  timestamp         DateTime    @default(now())
+
+  @@index([sessionId, timestamp])
+}
+
+model DailyGuidance {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String   @db.ObjectId
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String   // "MORNING" or "EVENING"
+  title     String?
+  content   String
+  shortTip  String?
+  date      String   // YYYY-MM-DD
+  muhurta   Json?
+  remedies  Json?
+  isWarning Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, date, type])
+  @@index([date])
+}
+
+model BetaUser {
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  name           String
+  email          String   @unique
+  phone          String
+  location       String?
+  referredByCode String?
+  inviteLinkSent Boolean  @default(false)
+  emailDelivered Boolean  @default(false)
+  accessRevoked  Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([email])
+}
+
+model OtpVerification {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  email     String   @unique
+  otp       String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+model OtpSession {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  mobile    String   @unique
+  otp       String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+model LanguageMetadata {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId       String   @db.ObjectId
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  languageCode String
+  action       String
+  createdAt    DateTime @default(now())
+}
+
+model ReferralMetadata {
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  referrerId     String   @db.ObjectId
+  referrer       User     @relation(fields: [referrerId], references: [id], onDelete: Cascade)
+  referredEmail  String?
+  funnelStep     String
+  createdAt      DateTime @default(now())
+}
+
+model AuditLog {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String?  @db.ObjectId
+  action    String
+  resource  String
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt(sort: Desc)])
+}
+
+model Admin {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  email     String   @unique
+  password  String
+  name      String?
+  role      String   @default("ADMIN")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

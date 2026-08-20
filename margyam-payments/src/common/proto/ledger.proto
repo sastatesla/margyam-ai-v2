@@ -1,0 +1,43 @@
+syntax = "proto3";
+
+package margyam.ledger;
+
+service LedgerService {
+  rpc VerifyAndDeduct (DeductRequest) returns (DeductResponse);
+  rpc RefundCoins (RefundRequest) returns (RefundResponse);
+  rpc GetBalance (BalanceRequest) returns (BalanceResponse);
+}
+
+message DeductRequest {
+  string user_id        = 1;
+  int32  amount         = 2;
+  string idempotency_key = 3;
+  string description    = 4;
+}
+
+message DeductResponse {
+  bool   success         = 1;
+  int32  remaining_balance = 2;
+  string transaction_id  = 3;
+  string error           = 4;
+}
+
+message RefundRequest {
+  string transaction_id = 1;
+  string reason         = 2;
+}
+
+message RefundResponse {
+  bool   success = 1;
+  string error   = 2;
+}
+
+message BalanceRequest {
+  string user_id = 1;
+}
+
+message BalanceResponse {
+  bool   success  = 1;
+  int32  balance  = 2;
+  string error    = 3;
+}

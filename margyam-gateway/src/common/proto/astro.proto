@@ -1,0 +1,46 @@
+syntax = "proto3";
+
+package margyam.astro;
+
+service AstroService {
+  rpc CalculateChart (ChartRequest) returns (ChartResponse);
+  rpc RunRagQuery (RagRequest) returns (RagResponse);
+}
+
+message ChartRequest {
+  string user_id       = 1;
+  double latitude      = 2;
+  double longitude     = 3;
+  string date_of_birth = 4;
+  string time_of_birth = 5;
+  string timezone      = 6;
+}
+
+message Planet {
+  string name    = 1;
+  string sign    = 2;
+  int32  house   = 3;
+  double degrees = 4;
+  bool   retrograde = 5;
+}
+
+message ChartResponse {
+  bool            success  = 1;
+  repeated Planet planets  = 2;
+  string          lagna    = 3;
+  string          error    = 4;
+}
+
+message RagRequest {
+  string user_id     = 1;
+  string session_id  = 2;
+  string query       = 3;
+  string language    = 4;
+}
+
+message RagResponse {
+  bool   success    = 1;
+  string answer     = 2;
+  string session_id = 3;
+  string error      = 4;
+}

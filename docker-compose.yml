@@ -1,0 +1,120 @@
+version: '3.8'
+
+services:
+  # API Gateway Service
+  gateway:
+    build:
+      context: ./margyam-gateway
+      dockerfile: Dockerfile
+    container_name: margyam-gateway
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - DATABASE_URL=mongodb://mongo:27017/margyam_gateway
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - ASTRO_GRPC_ADDRESS=ai-service:50051
+      - LEDGER_GRPC_ADDRESS=payments-service:50052
+      - JWT_SECRET=jwtsecret
+    depends_on:
+      - mongo
+      - redis
+      - ai-service
+      - payments-service
+    restart: unless-stopped
+
+  # AI Service
+  ai-service:
+    build:
+      context: ./margyam-ai
+      dockerfile: Dockerfile
+    container_name: margyam-ai
+    ports:
+      - "8000:8000"
+      - "50051:50051"
+    environment:
+      - PORT=8000
+      - GRPC_PORT=50051
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - WEAVIATE_URL=http://weaviate:8080
+      - GEMINI_API_KEY=${GEMINI_API_KEY:gemini-api-key}
+    depends_on:
+      - redis
+      - weaviate
+    restart: unless-stopped
+
+  # Payments Service
+  payments-service:
+    build:
+      context: ./margyam-payments
+      dockerfile: Dockerfile
+    container_name: margyam-payments
+    ports:
+      - "3001:3001"
+      - "50052:50052"
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - GRPC_PORT=50052
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/margyam_payments?schema=public
+      - JWT_SECRET=jwtsecret
+    depends_on:
+      - postgres
+    restart: unless-stopped
+
+  # MongoDB Container
+  mongo:
+    image: mongo:6
+    container_name: margyam-mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    restart: unless-stopped
+
+  # PostgreSQL Container
+  postgres:
+    image: postgres:16-alpine
+    container_name: margyam-postgres
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=margyam_payments
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  # Redis Container
+  redis:
+    image: redis:7-alpine
+    container_name: margyam-redis
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+
+  # Vector Database Container
+  weaviate:
+    image: semitechnologies/weaviate:1.24.10
+    container_name: margyam-weaviate
+    ports:
+      - "8080:8080"
+    environment:
+      QUERY_DEFAULTS_LIMIT: 25
+      AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: 'true'
+      PERSISTENCE_DATA_PATH: '/var/lib/weaviate'
+      DEFAULT_VECTORIZER_MODULE: 'none'
+      ENABLE_MODULES: ''
+      CLUSTER_HOSTNAME: 'node1'
+    volumes:
+      - weaviate_data:/var/lib/weaviate
+    restart: unless-stopped
+
+volumes:
+  mongo_data:
+  postgres_data:
+  weaviate_data:
