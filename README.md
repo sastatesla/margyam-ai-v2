@@ -1,6 +1,6 @@
-# Margyam v2 — Microservices AI & Financial Commerce Platform
+# Parth v2 — Microservices AI 
 
-Margyam v2 is a distributed microservices platform designed for real-time AI advice, vector knowledge search, automated agentic workflow orchestration, and secure financial coin transactions.
+Parth v2 is a distributed microservices platform designed for real-time Astrology based AI advice, vector knowledge search, automated agentic workflow orchestration, and secure financial coin transactions. It is astrology ai product that calculate Kundli and Gochar and based on that generates personalized answer.
 
 ---
 
