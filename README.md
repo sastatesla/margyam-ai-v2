@@ -285,7 +285,3 @@ cd margyam-payments && npm test
 cd margyam-ai && PYTHONPATH=. venv/bin/pytest tests/
 ```
 
----
-
-## License
-This project is licensed under the MIT License.
